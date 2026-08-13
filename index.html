@@ -493,6 +493,7 @@ input[type="text"]:focus {
              autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
              aria-label="TMDB API key">
       <button class="btn" id="saveKey" type="button">Save key</button>
+      <button class="btn btn--quiet" id="cancelKey" type="button" hidden>Cancel</button>
     </div>
 
     <div class="keysaved" id="keySaved" hidden>
@@ -999,7 +1000,9 @@ input[type="text"]:focus {
   var keyBar = document.getElementById("keyBar");
   var keySaved = document.getElementById("keySaved");
   var saveKeyBtn = document.getElementById("saveKey");
+  var cancelKeyBtn = document.getElementById("cancelKey");
   var changeKeyBtn = document.getElementById("changeKey");
+  var editingKey = false;
   var qInput = document.getElementById("q");
   var searchBtn = document.getElementById("searchBtn");
   var results = document.getElementById("results");
@@ -1033,10 +1036,13 @@ input[type="text"]:focus {
     try { return localStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; }
   }
 
+  /* A saved key is only ever replaced, never cleared by opening this form, so a
+     stray tap on Change costs nothing. */
   function showKeyState() {
     var has = !!readKey();
-    keyBar.hidden = has;
-    keySaved.hidden = !has;
+    keyBar.hidden = has && !editingKey;
+    keySaved.hidden = !has || editingKey;
+    cancelKeyBtn.hidden = !has;
   }
 
   function message(text, bad) {
@@ -1187,6 +1193,7 @@ input[type="text"]:focus {
     try {
       localStorage.setItem(KEY_STORE, k);
       keyInput.value = "";
+      editingKey = false;
       showKeyState();
       flash("Key saved");
     } catch (e) {
@@ -1195,9 +1202,16 @@ input[type="text"]:focus {
   });
 
   changeKeyBtn.addEventListener("click", function () {
-    try { localStorage.removeItem(KEY_STORE); } catch (e) { /* already gone */ }
+    editingKey = true;
+    keyInput.value = "";
     showKeyState();
     keyInput.focus();
+  });
+
+  cancelKeyBtn.addEventListener("click", function () {
+    editingKey = false;
+    keyInput.value = "";
+    showKeyState();
   });
 
   keyInput.addEventListener("keydown", function (e) {
