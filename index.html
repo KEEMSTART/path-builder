@@ -498,7 +498,6 @@ input[type="text"]:focus {
 
     <div class="keysaved" id="keySaved" hidden>
       <span>Key saved on this device</span>
-      <button class="btn btn--quiet" id="changeKey" type="button">Change</button>
     </div>
 
     <div class="bar">
@@ -521,6 +520,29 @@ input[type="text"]:focus {
 <script>
 (function () {
   "use strict";
+
+  /* Bumped on every deploy. A home-screen copy can sit on a cached file for a
+     long time, so the page checks for a newer build and reloads itself once. */
+  var BUILD_STAMP = "2026-08-13-03";
+
+  function checkForUpdate() {
+    if (location.protocol !== "http:" && location.protocol !== "https:") return;
+    fetch(location.pathname + "?cb=" + Date.now(), { cache: "reload" }).then(function (res) {
+      return res.ok ? res.text() : null;
+    }).then(function (text) {
+      if (!text) return;
+      var found = text.match(/BUILD_STAMP\s*=\s*"([^"]+)"/);
+      if (!found || found[1] === BUILD_STAMP) return;
+
+      /* The fetch above refreshed the HTTP cache, so a plain reload now picks
+         up the new file. Remember the stamp so a failed swap can't loop. */
+      var already = null;
+      try { already = sessionStorage.getItem("pathbuilder.reloadedFor"); } catch (e) { /* no session storage */ }
+      if (already === found[1]) return;
+      try { sessionStorage.setItem("pathbuilder.reloadedFor", found[1]); } catch (e) { /* best effort */ }
+      location.reload();
+    })["catch"](function () { /* offline or blocked: carry on with this copy */ });
+  }
 
   var MIN_SLOTS = 1;
   var MAX_SLOTS = 12;
@@ -1001,7 +1023,9 @@ input[type="text"]:focus {
   var keySaved = document.getElementById("keySaved");
   var saveKeyBtn = document.getElementById("saveKey");
   var cancelKeyBtn = document.getElementById("cancelKey");
-  var changeKeyBtn = document.getElementById("changeKey");
+  /* There is no Change control: the key is entered once. The form only comes
+     back if TMDB itself rejects the stored key, which is the one case where a
+     new one is genuinely needed. */
   var editingKey = false;
   var qInput = document.getElementById("q");
   var searchBtn = document.getElementById("searchBtn");
@@ -1172,7 +1196,9 @@ input[type="text"]:focus {
     message("Searching…");
     request(key, query).then(function (res) {
       if (res.status === 401) {
-        message("TMDB rejected that key. Check it in your TMDB account settings, then save it again.", true);
+        editingKey = true;
+        showKeyState();
+        message("TMDB rejected the saved key. Paste a working one above to replace it.", true);
         return null;
       }
       if (!res.ok) {
@@ -1201,13 +1227,6 @@ input[type="text"]:focus {
     }
   });
 
-  changeKeyBtn.addEventListener("click", function () {
-    editingKey = true;
-    keyInput.value = "";
-    showKeyState();
-    keyInput.focus();
-  });
-
   cancelKeyBtn.addEventListener("click", function () {
     editingKey = false;
     keyInput.value = "";
@@ -1228,6 +1247,7 @@ input[type="text"]:focus {
   render();
   showKeyState();
   renderPresets();
+  checkForUpdate();
 })();
 </script>
 </body>
