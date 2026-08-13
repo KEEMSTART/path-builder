@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Path Builder</title>
+<style>
+:root {
+  --ground:   #E7ECED;
+  --surface:  #FBFCFC;
+  --sunken:   #DCE4E5;
+  --ink:      #131A1B;
+  --muted:    #5C6A6C;
+  --faint:    #8FA0A2;
+  --line:     #C6D1D2;
+  --accent:   #D95214;
+  --accent-2: #B03D08;
+  --on-accent:#FFF6F1;
+  --focus:    #1E6E7A;
+  --radius:   10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:   #0E1314;
+    --surface:  #171F20;
+    --sunken:   #101718;
+    --ink:      #E4EBEB;
+    --muted:    #93A3A5;
+    --faint:    #66787A;
+    --line:     #2B3739;
+    --accent:   #FF7A3F;
+    --accent-2: #FF9666;
+    --on-accent:#1A0D06;
+    --focus:    #4FC3D2;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:   #0E1314;
+  --surface:  #171F20;
+  --sunken:   #101718;
+  --ink:      #E4EBEB;
+  --muted:    #93A3A5;
+  --faint:    #66787A;
+  --line:     #2B3739;
+  --accent:   #FF7A3F;
+  --accent-2: #FF9666;
+  --on-accent:#1A0D06;
+  --focus:    #4FC3D2;
+}
+
+* { box-sizing: border-box; }
+
+/* flex/grid display rules below would otherwise defeat the hidden attribute */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+.wrap {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(1.1rem, 4vw, 2.5rem) clamp(0.9rem, 4vw, 1.75rem) 3.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.1rem, 3vw, 1.6rem);
+}
+
+/* ---- masthead ---- */
+.masthead { display: flex; flex-direction: column; gap: 0.25rem; }
+.masthead h1 {
+  margin: 0;
+  font-size: clamp(1.45rem, 5vw, 1.85rem);
+  font-weight: 650;
+  letter-spacing: -0.021em;
+  text-wrap: balance;
+}
+.masthead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  max-width: 34rem;
+}
+
+/* ---- destination preview ---- */
+.preview {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.preview-url {
+  font-family: ui-monospace, "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+  font-size: clamp(0.9rem, 2.7vw, 1.02rem);
+  line-height: 1.55;
+  word-break: break-all;
+  color: var(--ink);
+}
+.preview-url .slash { color: var(--accent); padding: 0 0.02em; }
+.preview-url .seg   { color: var(--ink); }
+.preview-url .empty { color: var(--faint); font-style: italic; }
+
+/* ---- fields ---- */
+.fields { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+.picker {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.25rem;
+  max-width: 6.5rem;
+}
+.picker:hover:not(:disabled) { border-color: var(--muted); color: var(--ink); }
+.picker:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.picker:disabled { background: var(--sunken); color: var(--faint); cursor: not-allowed; }
+.row .marker {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-size: 1.15rem;
+  color: var(--faint);
+  text-align: right;
+  user-select: none;
+}
+.row--base .marker {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: inherit;
+}
+.row.filled .marker { color: var(--accent); }
+
+input[type="text"] {
+  width: 100%;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.62rem 0.7rem;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+input[type="text"]::placeholder { color: var(--faint); }
+input[type="text"]:hover { border-color: var(--muted); }
+input[type="text"]:focus-visible,
+input[type="text"]:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.row--base input { background: var(--surface); font-weight: 500; }
+.row:not(.filled) input { background: var(--sunken); }
+
+/* ---- slot count ---- */
+.slot-controls {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+.slot-controls .pair { display: flex; gap: 0.35rem; align-items: center; }
+.btn--icon {
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.slot-count {
+  font-size: 0.8rem;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  padding-left: 0.2rem;
+}
+
+/* ---- presets ---- */
+.presets {
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.preset {
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.preset button {
+  font: inherit;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.preset .val {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.55rem 0.3rem 0.7rem;
+  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+}
+.preset .kill {
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0 0.55rem 0 0.35rem;
+  color: var(--faint);
+  border-left: 1px solid var(--line);
+}
+.preset .kill:hover { color: var(--accent); }
+.preset button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* ---- actions ---- */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
+}
+.btn {
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 550;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn[disabled] {
+  background: var(--sunken);
+  border-color: var(--line);
+  color: var(--faint);
+  cursor: not-allowed;
+}
+.btn--go {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  padding-inline: 1.6rem;
+}
+.btn--go:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.btn--go[disabled] { background: var(--sunken); border-color: var(--line); color: var(--faint); }
+.btn--quiet { background: transparent; border-color: transparent; color: var(--muted); }
+.btn--quiet:hover { color: var(--ink); border-color: var(--line); }
+
+.status {
+  font-size: 0.8rem;
+  color: var(--faint);
+  margin-left: auto;
+}
+.status.flash { color: var(--accent); }
+
+/* ---- TMDB lookup ---- */
+.lookup {
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.lookup-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.target {
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.target select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem 0.4rem;
+}
+.target select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.bar { display: flex; gap: 0.45rem; }
+.bar input { flex: 1 1 auto; min-width: 0; }
+.bar .btn { flex: 0 0 auto; padding-inline: 0.9rem; }
+
+.keysaved {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.keysaved .btn { font-size: 0.82rem; padding: 0.25rem 0.5rem; }
+
+.results { display: flex; flex-direction: column; gap: 0.35rem; }
+.result {
+  display: grid;
+  grid-template-columns: 2.6rem 1fr auto;
+  align-items: center;
+  gap: 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+}
+.result img {
+  width: 2.6rem;
+  height: 3.9rem;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--sunken);
+  display: block;
+}
+.result .no-art {
+  width: 2.6rem;
+  height: 3.9rem;
+  border-radius: 4px;
+  background: var(--sunken);
+  border: 1px dashed var(--line);
+}
+.result .meta { min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.result .name {
+  font-weight: 550;
+  font-size: 0.94rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.result .sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.result .sub b {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-weight: 600;
+  color: var(--accent);
+}
+.chip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  color: var(--muted);
+  background: var(--sunken);
+}
+.result .btn { font-size: 0.85rem; padding: 0.4rem 0.75rem; }
+
+.msg { font-size: 0.85rem; color: var(--muted); margin: 0; }
+.msg.bad { color: var(--accent); }
+
+.note {
+  font-size: 0.83rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+  margin: 0;
+}
+.note code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-size: 0.95em;
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>Path Builder</h1>
+    <p>Keep the shape of a URL, swap only the part that changes. Everything you type stays put between trips.</p>
+  </header>
+
+  <section class="preview">
+    <span class="tag">Destination</span>
+    <div class="preview-url" id="preview" aria-live="polite"></div>
+  </section>
+
+  <div class="fields" id="fields">
+    <div class="row row--base" id="baseRow">
+      <span class="marker">Base</span>
+      <input type="text" id="base" placeholder="www.walmart.com" inputmode="url"
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+             aria-label="Base URL">
+      <select class="picker" id="basePicker" aria-label="Insert a preset into the base"></select>
+    </div>
+
+    <div class="slot-controls" id="slotControls">
+      <span></span>
+      <div class="pair">
+        <button class="btn btn--icon" id="addSlot" type="button" aria-label="Add a slot" title="Add a slot">+</button>
+        <button class="btn btn--icon" id="removeSlot" type="button" aria-label="Remove last slot" title="Remove last slot">&minus;</button>
+        <span class="slot-count" id="slotCount"></span>
+      </div>
+    </div>
+
+    <div class="slot-controls">
+      <span></span>
+      <label class="target" for="target">Send TMDB IDs to
+        <select id="target"></select>
+      </label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn--go" id="go">Go</button>
+    <button class="btn" id="copy">Copy</button>
+    <button class="btn btn--quiet" id="clear">Clear all</button>
+    <span class="status" id="status">Saved on this device</span>
+  </div>
+
+  <section class="presets">
+    <span class="tag">Presets</span>
+
+    <div class="bar">
+      <input type="text" id="presetInput" placeholder="A piece you reuse — watch, ip, dp"
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+             aria-label="New preset">
+      <button class="btn" id="addPreset" type="button">Add</button>
+    </div>
+
+    <div class="chip-list" id="presetList" aria-live="polite"></div>
+  </section>
+
+  <section class="lookup">
+    <span class="tag">TMDB lookup</span>
+
+    <div class="bar" id="keyBar">
+      <input type="password" id="key" placeholder="Paste your TMDB API key"
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+             aria-label="TMDB API key">
+      <button class="btn" id="saveKey" type="button">Save key</button>
+    </div>
+
+    <div class="keysaved" id="keySaved" hidden>
+      <span>Key saved on this device</span>
+      <button class="btn btn--quiet" id="changeKey" type="button">Change</button>
+    </div>
+
+    <div class="bar">
+      <input type="text" id="q" placeholder="Movie or show title"
+             autocomplete="off" autocapitalize="words" spellcheck="false"
+             aria-label="Movie or show title">
+      <button class="btn" id="searchBtn" type="button">Search</button>
+    </div>
+
+    <div class="results" id="results" aria-live="polite"></div>
+  </section>
+
+  <p class="note">
+    Blank slots are skipped. A slot starting with <code>?</code>, <code>&amp;</code> or <code>#</code>
+    is attached without a slash, so query strings work too.
+  </p>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var MIN_SLOTS = 1;
+  var MAX_SLOTS = 12;
+  var DEFAULT_SLOTS = 3;
+  var KEY = "pathbuilder.v1";
+
+  /* Phone home-screen niceties: the head is not always ours to write. */
+  function meta(name, content) {
+    if (document.querySelector('meta[name="' + name + '"]')) return;
+    var m = document.createElement("meta");
+    m.name = name;
+    m.content = content;
+    document.head.appendChild(m);
+  }
+  meta("viewport", "width=device-width, initial-scale=1, viewport-fit=cover");
+  meta("apple-mobile-web-app-capable", "yes");
+  meta("apple-mobile-web-app-title", "Path Builder");
+  meta("mobile-web-app-capable", "yes");
+
+  var fields = document.getElementById("fields");
+  var baseInput = document.getElementById("base");
+  var baseRow = document.getElementById("baseRow");
+  var preview = document.getElementById("preview");
+  var goBtn = document.getElementById("go");
+  var copyBtn = document.getElementById("copy");
+  var clearBtn = document.getElementById("clear");
+  var status = document.getElementById("status");
+  var slotControls = document.getElementById("slotControls");
+  var addSlotBtn = document.getElementById("addSlot");
+  var removeSlotBtn = document.getElementById("removeSlot");
+  var slotCount = document.getElementById("slotCount");
+  var target = document.getElementById("target");
+  var basePicker = document.getElementById("basePicker");
+
+  var slots = [];   /* { row, input } for each path segment, in order */
+
+  /* ---------- slots ---------- */
+
+  function addSlot(value) {
+    if (slots.length >= MAX_SLOTS) return null;
+
+    var row = document.createElement("div");
+    row.className = "row";
+
+    var marker = document.createElement("span");
+    marker.className = "marker";
+    marker.textContent = "/";
+
+    var input = document.createElement("input");
+    input.type = "text";
+    input.value = value || "";
+    input.setAttribute("inputmode", "url");
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("autocapitalize", "off");
+    input.setAttribute("autocorrect", "off");
+    input.setAttribute("spellcheck", "false");
+
+    input.addEventListener("input", function () { render(); save(); });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); go(); }
+    });
+    /* Touching a slot aims the shared target at it, so a preset or an ID
+       lands where the user is already working. */
+    input.addEventListener("focus", function () {
+      var idx = -1;
+      for (var i = 0; i < slots.length; i++) {
+        if (slots[i].input === input) { idx = i; break; }
+      }
+      if (idx >= 0) target.value = String(idx);
+    });
+
+    var picker = makePicker(input);
+
+    row.appendChild(marker);
+    row.appendChild(input);
+    row.appendChild(picker);
+    fields.insertBefore(row, slotControls);
+
+    slots.push({ row: row, input: input, picker: picker });
+    fillPicker(picker);
+    return input;
+  }
+
+  function removeLastSlot() {
+    if (slots.length <= MIN_SLOTS) return false;
+    var last = slots.pop();
+    var hadText = !!last.input.value.trim();
+    last.row.remove();
+    return hadText;
+  }
+
+  function setSlotCount(n) {
+    n = Math.max(MIN_SLOTS, Math.min(MAX_SLOTS, n));
+    while (slots.length < n) addSlot("");
+    while (slots.length > n) slots.pop().row.remove();
+  }
+
+  function labelSlots() {
+    for (var i = 0; i < slots.length; i++) {
+      slots[i].input.setAttribute("aria-label", "Path part " + (i + 1));
+      slots[i].input.placeholder = i === 0 ? "ip" : "";
+    }
+    slotCount.textContent = slots.length + (slots.length === 1 ? " slot" : " slots");
+    addSlotBtn.disabled = slots.length >= MAX_SLOTS;
+    removeSlotBtn.disabled = slots.length <= MIN_SLOTS;
+  }
+
+  /* ---------- preset pickers ----------
+     Every row carries its own menu, so a preset goes straight into the row it
+     belongs to. The menu is an action, not a setting: it snaps back to its
+     label once a value has been placed. */
+
+  function slotLabel(input) {
+    if (input === baseInput) return "base";
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i].input === input) return "slot " + (i + 1);
+    }
+    return "slot";
+  }
+
+  function makePicker(input) {
+    var picker = document.createElement("select");
+    picker.className = "picker";
+    wirePicker(picker, input);
+    return picker;
+  }
+
+  function wirePicker(picker, input) {
+    picker.addEventListener("change", function () {
+      var value = picker.value;
+      picker.selectedIndex = 0;
+      if (!value) return;
+      input.value = value;
+      render();
+      save();
+      flash(value + " → " + slotLabel(input));
+    });
+  }
+
+  function fillPicker(picker) {
+    picker.textContent = "";
+
+    var head = document.createElement("option");
+    head.value = "";
+    head.textContent = presets.length ? "Preset…" : "No presets";
+    picker.appendChild(head);
+
+    for (var i = 0; i < presets.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = presets[i];
+      opt.textContent = presets[i];
+      picker.appendChild(opt);
+    }
+
+    picker.selectedIndex = 0;
+    picker.disabled = !presets.length;
+  }
+
+  function fillAllPickers() {
+    fillPicker(basePicker);
+    for (var i = 0; i < slots.length; i++) fillPicker(slots[i].picker);
+  }
+
+  /* ---------- URL assembly ---------- */
+
+  function normalizeBase(raw) {
+    var b = String(raw || "").trim();
+    if (!b) return "";
+    b = b.replace(/^\/+/, "");
+    if (!/^[a-z][a-z0-9+.\-]*:\/\//i.test(b)) b = "https://" + b;
+    return b.replace(/\/+$/, "");
+  }
+
+  function normalizeSeg(raw) {
+    var s = String(raw || "").trim();
+    if (!s) return null;
+    var attached = /^[?&#]/.test(s);
+    if (!attached) s = s.replace(/^\/+|\/+$/g, "");
+    s = s.replace(/\s+/g, "%20");
+    if (!s) return null;
+    return { attached: attached, value: s };
+  }
+
+  function parts() {
+    var out = [];
+    for (var i = 0; i < slots.length; i++) {
+      var p = normalizeSeg(slots[i].input.value);
+      if (p) out.push(p);
+    }
+    return out;
+  }
+
+  function buildUrl() {
+    var base = normalizeBase(baseInput.value);
+    if (!base) return "";
+    var url = base;
+    var ps = parts();
+    for (var i = 0; i < ps.length; i++) {
+      url += ps[i].attached ? ps[i].value : "/" + ps[i].value;
+    }
+    return url;
+  }
+
+  /* ---------- rendering ---------- */
+
+  function span(cls, text) {
+    var s = document.createElement("span");
+    s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+
+  function render() {
+    var base = normalizeBase(baseInput.value);
+
+    baseRow.classList.toggle("filled", !!base);
+    for (var i = 0; i < slots.length; i++) {
+      slots[i].row.classList.toggle("filled", !!normalizeSeg(slots[i].input.value));
+    }
+    labelSlots();
+    syncTarget();
+
+    preview.textContent = "";
+    if (!base) {
+      preview.appendChild(span("empty", "Type a base URL to start"));
+      goBtn.disabled = true;
+      return;
+    }
+
+    goBtn.disabled = false;
+    preview.appendChild(span("seg", base));
+    var ps = parts();
+    for (var j = 0; j < ps.length; j++) {
+      if (!ps[j].attached) preview.appendChild(span("slash", "/"));
+      preview.appendChild(span("seg", ps[j].value));
+    }
+  }
+
+  /* ---------- persistence ---------- */
+
+  var storageOK = true;
+
+  function state() {
+    return {
+      base: baseInput.value,
+      segs: slots.map(function (s) { return s.input.value; })
+    };
+  }
+
+  function apply(data) {
+    if (!data) return;
+    baseInput.value = data.base || "";
+    var segs = data.segs || [];
+    setSlotCount(segs.length || DEFAULT_SLOTS);
+    for (var i = 0; i < slots.length; i++) {
+      slots[i].input.value = segs[i] || "";
+    }
+  }
+
+  function save() {
+    var json = JSON.stringify(state());
+    if (storageOK) {
+      try {
+        localStorage.setItem(KEY, json);
+        return;
+      } catch (e) {
+        storageOK = false;
+        status.textContent = "Storage blocked — setup kept in this link";
+      }
+    }
+    try {
+      history.replaceState(null, "", "#s=" + encodeURIComponent(json));
+    } catch (e) { /* nothing else to fall back to */ }
+  }
+
+  function load() {
+    var hash = location.hash || "";
+    if (hash.indexOf("#s=") === 0) {
+      try {
+        apply(JSON.parse(decodeURIComponent(hash.slice(3))));
+        return;
+      } catch (e) { /* fall through to storage */ }
+    }
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { apply(JSON.parse(raw)); return; }
+    } catch (e) {
+      storageOK = false;
+      status.textContent = "Storage blocked — setup kept in this link";
+    }
+    setSlotCount(DEFAULT_SLOTS);
+  }
+
+  /* ---------- actions ---------- */
+
+  var flashTimer = null;
+  function flash(msg) {
+    var restore = storageOK ? "Saved on this device" : "Storage blocked — setup kept in this link";
+    status.textContent = msg;
+    status.classList.add("flash");
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () {
+      status.textContent = restore;
+      status.classList.remove("flash");
+    }, 1800);
+  }
+
+  function go() {
+    var url = buildUrl();
+    if (!url) return;
+    var win = window.open(url, "_blank", "noopener");
+    if (!win) location.href = url;
+  }
+
+  function copy() {
+    var url = buildUrl();
+    if (!url) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        function () { flash("Copied"); },
+        function () { flash("Copy blocked — select the link above"); }
+      );
+      return;
+    }
+    flash("Copy blocked — select the link above");
+  }
+
+  function clearAll() {
+    baseInput.value = "";
+    for (var i = 0; i < slots.length; i++) slots[i].input.value = "";
+    save();
+    render();
+    baseInput.focus();
+    flash("Cleared");
+  }
+
+  baseInput.addEventListener("input", function () { render(); save(); });
+  baseInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); go(); }
+  });
+
+  goBtn.addEventListener("click", go);
+  copyBtn.addEventListener("click", copy);
+  clearBtn.addEventListener("click", clearAll);
+
+  addSlotBtn.addEventListener("click", function () {
+    var input = addSlot("");
+    render();
+    save();
+    if (input) input.focus();
+  });
+
+  removeSlotBtn.addEventListener("click", function () {
+    var count = slots.length;
+    var hadText = removeLastSlot();
+    if (slots.length === count) return;
+    render();
+    save();
+    if (hadText) flash("Removed slot " + count + " and its text");
+  });
+
+  /* ---------- presets ----------
+     A device-local library of path pieces. Kept in its own storage entry so it
+     survives clearing the builder and never rides along in a shared link. */
+
+  var PRESET_STORE = "pathbuilder.presets";
+  var MAX_PRESETS = 40;
+
+  var presetInput = document.getElementById("presetInput");
+  var addPresetBtn = document.getElementById("addPreset");
+  var presetList = document.getElementById("presetList");
+
+  var presets = [];
+
+  function loadPresets() {
+    try {
+      var raw = localStorage.getItem(PRESET_STORE);
+      var parsed = raw ? JSON.parse(raw) : [];
+      presets = Object.prototype.toString.call(parsed) === "[object Array]" ? parsed : [];
+    } catch (e) {
+      presets = [];
+    }
+  }
+
+  function savePresets() {
+    try {
+      localStorage.setItem(PRESET_STORE, JSON.stringify(presets));
+    } catch (e) { /* storage is blocked; the list stays for this visit only */ }
+  }
+
+  function sendToTarget(value, label) {
+    var slot = parseInt(target.value, 10);
+    if (isNaN(slot) || !slots[slot]) slot = 0;
+    if (!slots[slot]) return;
+    slots[slot].input.value = String(value);
+    render();
+    save();
+    flash(label + " → slot " + (slot + 1));
+  }
+
+  function renderPresets() {
+    fillAllPickers();
+    presetList.textContent = "";
+
+    if (!presets.length) {
+      var hint = document.createElement("p");
+      hint.className = "msg";
+      hint.textContent = "Nothing saved yet. Add a piece you use often — watch, ip, dp — and it appears in every row's menu.";
+      presetList.appendChild(hint);
+      return;
+    }
+
+    presets.forEach(function (value, index) {
+      var chip = document.createElement("span");
+      chip.className = "preset";
+
+      var use = document.createElement("span");
+      use.className = "val";
+      use.textContent = value;
+
+      var kill = document.createElement("button");
+      kill.type = "button";
+      kill.className = "kill";
+      kill.textContent = "×";
+      kill.setAttribute("aria-label", "Delete preset " + value);
+      kill.addEventListener("click", function () {
+        presets.splice(index, 1);
+        savePresets();
+        renderPresets();
+        flash("Deleted " + value);
+      });
+
+      chip.appendChild(use);
+      chip.appendChild(kill);
+      presetList.appendChild(chip);
+    });
+  }
+
+  function addPreset() {
+    var value = presetInput.value.trim().replace(/^\/+|\/+$/g, "");
+    if (!value) { presetInput.focus(); return; }
+
+    for (var i = 0; i < presets.length; i++) {
+      if (presets[i] === value) {
+        presetInput.value = "";
+        flash(value + " is already saved");
+        return;
+      }
+    }
+
+    if (presets.length >= MAX_PRESETS) {
+      flash("Preset list is full at " + MAX_PRESETS + " — delete one first");
+      return;
+    }
+
+    presets.push(value);
+    savePresets();
+    renderPresets();
+    presetInput.value = "";
+    presetInput.focus();
+    flash("Saved " + value);
+  }
+
+  addPresetBtn.addEventListener("click", addPreset);
+  presetInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); addPreset(); }
+  });
+
+  /* ---------- TMDB lookup ----------
+     The key is held in its own storage entry and is deliberately kept out of
+     the link fallback above, so a shared setup never carries the credential. */
+
+  var KEY_STORE = "pathbuilder.tmdbkey";
+  var IMG = "https://image.tmdb.org/t/p/w92";
+
+  var keyInput = document.getElementById("key");
+  var keyBar = document.getElementById("keyBar");
+  var keySaved = document.getElementById("keySaved");
+  var saveKeyBtn = document.getElementById("saveKey");
+  var changeKeyBtn = document.getElementById("changeKey");
+  var qInput = document.getElementById("q");
+  var searchBtn = document.getElementById("searchBtn");
+  var results = document.getElementById("results");
+
+  function firstEmptySlot() {
+    for (var i = 0; i < slots.length; i++) {
+      if (!slots[i].input.value.trim()) return i;
+    }
+    return slots.length - 1;
+  }
+
+  /* Keep the destination dropdown in step with the slot count, holding the
+     user's pick when it still exists. */
+  function syncTarget() {
+    var wanted = target.value === "" ? null : parseInt(target.value, 10);
+    target.textContent = "";
+    for (var i = 0; i < slots.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = "slot " + (i + 1);
+      target.appendChild(opt);
+    }
+    if (wanted !== null && wanted >= 0 && wanted < slots.length) {
+      target.value = String(wanted);
+    } else {
+      target.value = String(firstEmptySlot());
+    }
+  }
+
+  function readKey() {
+    try { return localStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; }
+  }
+
+  function showKeyState() {
+    var has = !!readKey();
+    keyBar.hidden = has;
+    keySaved.hidden = !has;
+  }
+
+  function message(text, bad) {
+    results.textContent = "";
+    var p = document.createElement("p");
+    p.className = "msg" + (bad ? " bad" : "");
+    p.textContent = text;
+    results.appendChild(p);
+  }
+
+  /* TMDB issues two credentials: a v3 key (query parameter) and a v4 read
+     access token (bearer header). Accept either and use the right transport. */
+  function request(key, query) {
+    var isToken = key.split(".").length === 3 && key.length > 80;
+    var url = "https://api.themoviedb.org/3/search/multi?include_adult=false&query=" +
+      encodeURIComponent(query);
+    var opts = { headers: { accept: "application/json" } };
+    if (isToken) {
+      opts.headers.Authorization = "Bearer " + key;
+    } else {
+      url += "&api_key=" + encodeURIComponent(key);
+    }
+    return fetch(url, opts);
+  }
+
+  function useResult(id) {
+    sendToTarget(id, "ID " + id);
+  }
+
+  /* search/multi returns movies, shows and people in one list, each labelled
+     by media_type and using its own title and date fields. */
+  function normalizeHit(m) {
+    if (m.media_type !== "movie" && m.media_type !== "tv") return null;
+    var isTv = m.media_type === "tv";
+    return {
+      id: m.id,
+      kind: isTv ? "TV" : "Movie",
+      name: (isTv ? m.name || m.original_name : m.title || m.original_title) || "Untitled",
+      year: String(isTv ? m.first_air_date || "" : m.release_date || "").slice(0, 4),
+      poster: m.poster_path || ""
+    };
+  }
+
+  function renderResults(list, query) {
+    results.textContent = "";
+
+    var hits = [];
+    for (var i = 0; i < list.length; i++) {
+      var h = normalizeHit(list[i]);
+      if (h) hits.push(h);
+    }
+
+    if (!hits.length) {
+      message("No movies or shows matched “" + query + "”. Try fewer words or the original title.");
+      return;
+    }
+
+    hits.slice(0, 8).forEach(function (m) {
+      var row = document.createElement("div");
+      row.className = "result";
+
+      if (m.poster) {
+        var img = document.createElement("img");
+        img.src = IMG + m.poster;
+        img.alt = "";
+        img.loading = "lazy";
+        row.appendChild(img);
+      } else {
+        var blank = document.createElement("div");
+        blank.className = "no-art";
+        row.appendChild(blank);
+      }
+
+      var meta = document.createElement("div");
+      meta.className = "meta";
+
+      var name = document.createElement("span");
+      name.className = "name";
+      name.textContent = m.name;
+      meta.appendChild(name);
+
+      var sub = document.createElement("span");
+      sub.className = "sub";
+
+      var chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = m.kind;
+      sub.appendChild(chip);
+
+      if (m.year) {
+        var yr = document.createElement("span");
+        yr.textContent = m.year;
+        sub.appendChild(yr);
+      }
+
+      var idEl = document.createElement("b");
+      idEl.textContent = m.id;
+      sub.appendChild(idEl);
+
+      meta.appendChild(sub);
+      row.appendChild(meta);
+
+      var use = document.createElement("button");
+      use.className = "btn";
+      use.type = "button";
+      use.textContent = "Use";
+      use.addEventListener("click", function () { useResult(m.id); });
+      row.appendChild(use);
+
+      results.appendChild(row);
+    });
+  }
+
+  function search() {
+    var key = readKey();
+    if (!key) {
+      message("Paste your TMDB key above first.", true);
+      keyInput.focus();
+      return;
+    }
+    var query = qInput.value.trim();
+    if (!query) {
+      qInput.focus();
+      return;
+    }
+
+    message("Searching…");
+    request(key, query).then(function (res) {
+      if (res.status === 401) {
+        message("TMDB rejected that key. Check it in your TMDB account settings, then save it again.", true);
+        return null;
+      }
+      if (!res.ok) {
+        message("TMDB returned an error (" + res.status + "). Try again in a moment.", true);
+        return null;
+      }
+      return res.json();
+    }).then(function (data) {
+      if (data) renderResults(data.results || [], query);
+    })["catch"](function () {
+      message("Couldn't reach TMDB. If this is the published phone copy, lookups are blocked there — run the search in the desktop copy.", true);
+    });
+  }
+
+  saveKeyBtn.addEventListener("click", function () {
+    var k = keyInput.value.trim();
+    if (!k) { keyInput.focus(); return; }
+    try {
+      localStorage.setItem(KEY_STORE, k);
+      keyInput.value = "";
+      showKeyState();
+      flash("Key saved");
+    } catch (e) {
+      message("This browser won't let the page store the key, so it can't be kept between visits.", true);
+    }
+  });
+
+  changeKeyBtn.addEventListener("click", function () {
+    try { localStorage.removeItem(KEY_STORE); } catch (e) { /* already gone */ }
+    showKeyState();
+    keyInput.focus();
+  });
+
+  keyInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); saveKeyBtn.click(); }
+  });
+  qInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); search(); }
+  });
+  searchBtn.addEventListener("click", search);
+
+  wirePicker(basePicker, baseInput);
+  loadPresets();
+  load();
+  render();
+  showKeyState();
+  renderPresets();
+})();
+</script>
+</body>
+</html>
